@@ -1,0 +1,16 @@
+[
+    {
+        "commentId": 1,
+        "userId": 2,
+        "postId": 1,
+        "text": "What a twat.",
+        "createdAt": "2024-04-03"
+    },
+    {
+        "commentId": 2,
+        "userId": 3,
+        "postId": 2,
+        "text": "Go on mate.",
+        "createdAt": "2024-04-03"
+    }
+]
