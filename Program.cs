@@ -100,38 +100,79 @@ app.MapGet("/initialize", () =>
 
 }).WithName("Init").WithOpenApi();
 
-app.MapGet("/users", () =>{
+app.MapGet("/users/{userId?}", (string? userId) =>{
     using (var context = new ChirperContext())
     {
-        var users = context.Users.ToList();
-        return users;
+        if(string.IsNullOrEmpty(userId) || userId==","){
+            var users = context.Users.ToList();
+            return users;
+        }
+        else{
+            var matchingUser = context.Users.Where(u => u.userId == Int32.Parse(userId)).ToList();
+            return matchingUser;
+        }
     }
 }).WithName("GetUsers").WithOpenApi();
 
-app.MapGet("/follows", () =>
+app.MapGet("/following/{userId?}", (string? userId) =>
 {
     using (var context = new ChirperContext())
     {
-        var follows = context.Follows.ToList();
-        return follows;
+        if(string.IsNullOrEmpty(userId) || userId==","){
+            var follows = context.Follows.ToList();
+            return follows;
+        }
+        else{
+            var matchingFollows = context.Follows.Where(f => f.followerId == Int32.Parse(userId)).ToList();
+            return matchingFollows;
+        }
     }
-}).WithName("GetFollows").WithOpenApi();
+}).WithName("GetFollowing").WithOpenApi();
 
-app.MapGet("/posts", () =>
+app.MapGet("/followers/{userId?}", (string? userId) =>
 {
     using (var context = new ChirperContext())
     {
-        var posts = context.Posts.ToList();
-        return posts;
+        if (string.IsNullOrEmpty(userId) || userId == ",")
+        {
+            var follows = context.Follows.ToList();
+            return follows;
+        }
+        else
+        {
+            var matchingFollows = context.Follows.Where(f => f.followingId == Int32.Parse(userId)).ToList();
+            return matchingFollows;
+        }
+    }
+}).WithName("GetFollowers").WithOpenApi();
+
+app.MapGet("/posts/{userId?}", (string? userId) =>
+{
+    using (var context = new ChirperContext())
+    {
+        if(string.IsNullOrEmpty(userId) || userId==","){
+            var posts = context.Posts.ToList();
+            return posts;
+        }
+        else{
+            var matchingPosts = context.Posts.Where(p => p.userId == Int32.Parse(userId)).ToList();
+            return matchingPosts;
+        }
     }
 }).WithName("GetPosts").WithOpenApi();
 
-app.MapGet("/comments", () =>
+app.MapGet("/comments/{postId?}", (string? postId) =>
 {
     using (var context = new ChirperContext())
     {
-        var comments = context.Comments.ToList();
-        return comments;
+        if(string.IsNullOrEmpty(postId) || postId==","){
+            var comments = context.Comments.ToList();
+            return comments;
+        }
+        else{
+            var matchingComments = context.Comments.Where(c => c.postId == Int32.Parse(postId)).ToList();
+            return matchingComments;
+        }
     }
 }).WithName("GetComments").WithOpenApi();
 
@@ -179,7 +220,40 @@ app.MapPost("/comment", (Comment comment) =>
     return Results.Created($"/comment/{comment.commentId}", comment);
 }).WithName("PostComment").WithOpenApi();
 
+app.MapPut("/user/{userId}", (int userId, User updatedUser) =>
+{
+    using (var context = new ChirperContext())
+    {
+        var existingUser = context.Users.Find(userId);
+        if (existingUser == null)
+        {
+            return Results.NotFound();
+        }
 
+        existingUser.username = updatedUser.username;
+        existingUser.bio = updatedUser.bio;
+        existingUser.profileImage = updatedUser.profileImage;
+
+        context.SaveChanges();
+        context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
+    }
+    return Results.Ok();
+}).WithName("PutUser").WithOpenApi();
+
+app.MapDelete("/follow/{id}", (int id) =>
+{
+    using (var context = new ChirperContext())
+    {
+        var follow = context.Follows.Find(id);
+        if (follow == null){
+            return Results.NotFound();
+        }
+        context.Follows.Remove(follow);
+        context.SaveChanges();
+        context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
+    }    
+    return Results.Ok();
+}).WithName("DeleteUser").WithOpenApi();
 
 app.Run();
 
