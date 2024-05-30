@@ -1,6 +1,10 @@
 using System.Text.Json;
 using final_project_back_end_akostryba;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.OpenApi.Models;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,10 +19,39 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddAuthorization();
+builder.Services.AddAuthentication("BasicAuthentication")
+    .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("BasicAuthentication", null);
+
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.AddSecurityDefinition("basic", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "basic",
+        In = ParameterLocation.Header,
+        Description = "Basic Authorization header using the Bearer scheme."
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "basic"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
 
 var app = builder.Build();
 
@@ -28,6 +61,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAllOrigins");
@@ -196,7 +232,7 @@ app.MapPost("/follow", (Follow follow) =>
         context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
     }
     return Results.Created($"/follow/{follow.Id}", follow);
-}).WithName("PostFollow").WithOpenApi();
+}).WithName("PostFollow").WithOpenApi().RequireAuthorization(new AuthorizeAttribute() { AuthenticationSchemes = "BasicAuthentication" }); ;
 
 app.MapPost("/post", (Post post) =>
 {
@@ -207,7 +243,7 @@ app.MapPost("/post", (Post post) =>
         context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
     }
     return Results.Created($"/post/{post.postId}", post);
-}).WithName("PostPost").WithOpenApi();
+}).WithName("PostPost").WithOpenApi().RequireAuthorization(new AuthorizeAttribute() { AuthenticationSchemes = "BasicAuthentication" }); ;
 
 app.MapPost("/comment", (Comment comment) =>
 {
@@ -218,7 +254,7 @@ app.MapPost("/comment", (Comment comment) =>
         context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
     }
     return Results.Created($"/comment/{comment.commentId}", comment);
-}).WithName("PostComment").WithOpenApi();
+}).WithName("PostComment").WithOpenApi().RequireAuthorization(new AuthorizeAttribute() { AuthenticationSchemes = "BasicAuthentication" }); ;
 
 app.MapPut("/user/{userId}", (int userId, User updatedUser) =>
 {
@@ -238,7 +274,7 @@ app.MapPut("/user/{userId}", (int userId, User updatedUser) =>
         context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
     }
     return Results.Ok();
-}).WithName("PutUser").WithOpenApi();
+}).WithName("PutUser").WithOpenApi().RequireAuthorization(new AuthorizeAttribute() { AuthenticationSchemes = "BasicAuthentication" }); ;
 
 app.MapDelete("/follow/{id}", (int id) =>
 {
@@ -253,7 +289,49 @@ app.MapDelete("/follow/{id}", (int id) =>
         context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
     }    
     return Results.Ok();
-}).WithName("DeleteUser").WithOpenApi();
+}).WithName("DeleteUser").WithOpenApi().RequireAuthorization(new AuthorizeAttribute() { AuthenticationSchemes = "BasicAuthentication" }); ;
+
+app.MapPost("/login", (User authenticatedUser) =>
+{
+    using (var context = new ChirperContext())
+    {
+        var user = context.Users.FirstOrDefault(l => l.username == authenticatedUser.username);
+        if (user == null)
+        {
+            return Results.NotFound();
+        }
+        return Results.Ok(user);
+    }
+}).WithName("Login").WithOpenApi().RequireAuthorization(new AuthorizeAttribute() { AuthenticationSchemes = "BasicAuthentication" });
+
+app.MapPost("/newUser", (User newUser) =>
+{
+    
+    using (var context = new ChirperContext())
+    {
+        context.Users.Add(newUser);
+        context.SaveChanges();
+        context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
+    }
+    return Results.Created($"/newUser/{newUser.userId}", newUser);
+}).WithName("PostLogin").WithOpenApi();
+
+app.MapDelete("/deletePost/{postId}", (int postId) =>
+{
+    using (var context = new ChirperContext())
+    {
+        var post = context.Posts.Find(postId);
+        if (post == null)
+        {
+            return Results.NotFound();
+        }
+        context.Posts.Remove(post);
+        context.SaveChanges();
+        context.Database.ExecuteSqlRaw("PRAGMA wal_checkpoint;");
+    }
+    return Results.Ok();
+}).WithName("DeletePost").WithOpenApi();
+
 
 app.Run();
 
